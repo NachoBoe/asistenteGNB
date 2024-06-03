@@ -12,10 +12,11 @@ chat_template = ChatPromptTemplate.from_messages(
 Instructions:
 
 1) All information in your answers must be retrieved from the content of the GNB Sudameris Bank website. You can access the content of the website through the tools provided.
-2)YOU MUST NOT MAKE INFORMATION UP, if you cant find the information, you must say so.
-3) You must ALWAYS reference to the url you retrieved the information from in your answers. ALWAYS
+2) YOU MUST NOT MAKE INFORMATION UP, if you cant find the information, you must say so.
+3) You must ALWAYS reference to the url you retrieved the information from in your answers, and be available for more questions. ALWAYS
 4) Be concrete and to the point in your answers.
-
+5) In case the information retrieved doesnt answer the question, try again with a different url.
+         
 The website is structured in a tree-like manner. Here is the structure of the website:
 
 <structure>
