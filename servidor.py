@@ -15,6 +15,7 @@ from pyprojroot import here
 import os
 from uuid import uuid4
 from langsmith import Client
+from collections import defaultdict
 
 import csv
 from langchain_core.prompts import ChatPromptTemplate
@@ -23,14 +24,53 @@ from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.messages import AIMessage, HumanMessage
 from chain_v1 import agent_executor as agent_executor_v1
-
+import dill
 import asyncio
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Static HTML file handling using Jinja2
 templates = Jinja2Templates(directory="templates")
 
+from collections import defaultdict
+
+def print_tree(d, indent=0, current_path="", path_wo_content=None):
+    if path_wo_content is None:
+        path_wo_content = set()
+    
+    lines = []
+    for key, value in d.items():
+        full_path = f"{current_path}/{key}"
+        if full_path in path_wo_content:
+            lines.append('  ' * indent + key + " (*)")
+        else:
+            lines.append('  ' * indent + key)
+        if isinstance(value, defaultdict):
+            lines.extend(print_tree(value, indent + 1, full_path, path_wo_content))
+    
+    return lines
+
+
+with open('tree_podado_personas.dill', 'rb') as archivo:
+    tree_podado_personas = dill.load(archivo)
+    
+with open('tree_podado_empresas.dill', 'rb') as archivo:
+    tree_podado_empresas = dill.load(archivo)
+
+def get_no_cont(contenido_urls):
+    path_wo_content = []
+    for result in contenido_urls:
+        if result["content"].startswith("![Image 1: Error]"):
+            path_wo_content.append("/" + "/".join(result["url"].split("/")[3:]))
+    return path_wo_content
+
+## contenido urls
+with open('contenido_urls.dill', 'rb') as archivo:
+    contenido_urls = dill.load(archivo)
+
+
+trees = [tree_podado_personas, tree_podado_empresas]
 
 # VARIABLES GLOBALES
 ultima_respuesta = {}
@@ -60,14 +100,11 @@ async def generate_data(message, tab_id):
     for m in chat_history:
         chat_history_string += f"{m.type}: {m.content} \n"
     resp = ""
-    print(version)
-    print(version == "2")
-    if version == "2":
-        agent_executor = agent_executor_v1
-    else:
-        agent_executor = agent_executor_v1
+
+ 
+    agent_executor = agent_executor_v1
     
-    async for chunk in agent_executor.astream_events({"input": message, "chat_history": chat_history}, version="v1"):
+    async for chunk in agent_executor.astream_events({"input": message, "chat_history": chat_history, "structure":version}, version="v1"):
         if chunk["event"] == "on_chat_model_stream":
             content = chunk["data"]["chunk"].content
             resp += content
@@ -104,9 +141,9 @@ def stream(request: Request):
 @app.post("/select_version")
 async def select_version(request: Request):
     data = await request.json()
-    select_version = data['version']
+    select_version = int(data['version'])
     global versions
-    versions[data['tabId']] = select_version
+    versions[data['tabId']] = "\n".join(print_tree(trees[select_version], path_wo_content=get_no_cont(contenido_urls)))
     print("Versión actualizada a:", select_version)
     return JSONResponse(content={'status': 'success'})
 
